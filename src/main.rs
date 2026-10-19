@@ -34,21 +34,6 @@ impl Vertex {
     }
 }
 
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [0.0, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
-    },
-    Vertex {
-        position: [-0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
-    },
-    Vertex {
-        position: [0.5, -0.5, 0.0],
-        color: [0.0, 0.0, 1.0],
-    },
-];
-
 struct State {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -62,10 +47,27 @@ struct State {
     vertex_buffer: wgpu::Buffer,
 
     num_vertices: u32,
+
+    vertices: Vec<Vertex>,
 }
 
 impl State {
     async fn new(window: Arc<Window>) -> Self {
+        let vertices = vec![
+            Vertex {
+                position: [0.0, 0.5, 0.0],
+                color: [1.0, 0.0, 0.0],
+            },
+            Vertex {
+                position: [-0.5, -0.5, 0.0],
+                color: [0.0, 1.0, 0.0],
+            },
+            Vertex {
+                position: [0.5, -0.5, 0.0],
+                color: [0.0, 0.0, 1.0],
+            },
+        ];
+
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -173,11 +175,11 @@ impl State {
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
+            contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
-        let num_vertices = VERTICES.len() as u32;
+        let num_vertices = vertices.len() as u32;
 
         Self {
             surface,
@@ -189,7 +191,19 @@ impl State {
             render_pipeline,
             vertex_buffer,
             num_vertices,
+            vertices,
         }
+    }
+
+    fn update_vertex_buffer(&mut self) {
+        self.vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&self.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.num_vertices = self.vertices.len() as u32;
     }
 
     fn resize(&mut self, width: u32, height: u32) {
@@ -259,8 +273,14 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
 
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..1);
+            let data = data::get_data();
+            for height in data {
+                self.vertices = data::create_vertices(-0.5, 0.2, height);
+
+                self.update_vertex_buffer();
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.draw(0..self.num_vertices, 0..1);
+            }
         } // Render Pass
 
         self.queue.submit(std::iter::once(encoder.finish()));
